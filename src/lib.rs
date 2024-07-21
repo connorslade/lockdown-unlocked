@@ -1,19 +1,22 @@
 #![cfg(windows)]
 
-use std::{ffi::c_void, iter, panic, process};
+use std::{ffi::c_void, iter, panic, process, thread, time::Duration};
 
 use anyhow::Result;
 use windows::{
     core::{s, PCSTR},
     Win32::{
-        Foundation::{GetLastError, HANDLE, HINSTANCE, HWND, LPARAM, LRESULT, MAX_PATH, WPARAM},
+        Foundation::{GetLastError, BOOL, HANDLE, HINSTANCE, HWND, LPARAM, MAX_PATH},
         System::{
             Diagnostics::Debug::{OutputDebugStringA, ReadProcessMemory, WriteProcessMemory},
             Environment::GetCommandLineA,
             LibraryLoader::{GetProcAddress, LoadLibraryA},
-            ProcessStatus::{EnumProcesses, GetProcessImageFileNameA},
+            ProcessStatus::GetProcessImageFileNameA,
             SystemServices::{DLL_PROCESS_ATTACH, DLL_PROCESS_DETACH},
             Threading::GetCurrentProcess,
+        },
+        UI::WindowsAndMessaging::{
+            EnumWindows, GetWindowLongA, GetWindowTextA, MoveWindow, GWL_STYLE,
         },
     },
 };
@@ -81,6 +84,35 @@ static mut ENUM_PROCESSES_ORIGINAL_BYTES: [u8; 6] = [0; 6];
 static mut BYTES_WRITTEN: usize = 0;
 static mut ENUM_PROCESSES_ADDRESS: Option<unsafe extern "system" fn() -> isize> = None;
 
+const WINDOW_SIZE: (i32, i32) = (1920, 1080);
+
+unsafe extern "system" fn window_enum(hwnd: HWND, _lparam: LPARAM) -> BOOL {
+    let mut string = [0u8; 1024];
+    GetWindowTextA(hwnd, &mut string);
+
+    let end = string.iter().position(|&c| c == 0).unwrap_or(0);
+    let title = String::from_utf8_lossy(&string[..end]);
+
+    let style = GetWindowLongA(hwnd, GWL_STYLE);
+    log!("Window: {:?} - {} - {style}", hwnd.0, title);
+
+    if title == "Respondus LockDown Browser" {
+        MoveWindow(hwnd, 100, 100, WINDOW_SIZE.0, WINDOW_SIZE.1, BOOL(1)).unwrap();
+    } else if title == "LockDown Browser" {
+        MoveWindow(
+            hwnd,
+            100,
+            100 + 64,
+            WINDOW_SIZE.0,
+            WINDOW_SIZE.1 - 64,
+            BOOL(1),
+        )
+        .unwrap();
+    }
+
+    BOOL(1)
+}
+
 unsafe fn process_attach() -> Result<()> {
     let cmd = GetCommandLineA();
     let cmd = String::from_utf8_lossy(cmd.as_bytes());
@@ -120,6 +152,12 @@ unsafe fn process_attach() -> Result<()> {
         Some(BYTES_WRITTEN as *mut usize),
     )
     .unwrap();
+
+    thread::spawn(|| {
+        log!("Thread started");
+        thread::sleep(Duration::from_secs(10));
+        EnumWindows(Some(window_enum), LPARAM(0))
+    });
 
     Ok(())
 }
