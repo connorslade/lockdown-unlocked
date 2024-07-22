@@ -9,10 +9,9 @@ use windows::{
         System::LibraryLoader::GetProcAddress,
         UI::WindowsAndMessaging::{
             DefWindowProcW, GetClassInfoExW, GetWindowRect, RegisterClassExW, SetWindowPos, HMENU,
-            MA_NOACTIVATEANDEAT, SWP_NOSIZE, SWP_NOZORDER, WINDOW_EX_STYLE, WINDOW_STYLE,
-            WM_ACTIVATE, WM_INPUT, WM_KILLFOCUS, WM_MOUSEACTIVATE, WM_MOVE, WM_POWERBROADCAST,
-            WM_SETFOCUS, WM_SHOWWINDOW, WM_SYSCOMMAND, WM_SYSKEYDOWN, WM_SYSKEYUP, WNDCLASSEXW,
-            WS_CAPTION,
+            SWP_NOSIZE, SWP_NOZORDER, WINDOW_EX_STYLE, WINDOW_STYLE, WM_ACTIVATE, WM_INPUT,
+            WM_KILLFOCUS, WM_MOVE, WM_POWERBROADCAST, WM_SETFOCUS, WM_SHOWWINDOW, WM_SYSCOMMAND,
+            WM_SYSKEYDOWN, WM_SYSKEYUP, WNDCLASSEXW, WS_CAPTION,
         },
     },
 };
@@ -119,7 +118,6 @@ unsafe extern "system" fn create_win_detour(
         }
     }
 
-    log!("old_proc: {:?}", old_proc);
     let hwnd = CREATE_WINDOW_EXA_HOOK
         .trampoline::<CreateWindowExW, _>(|func| {
             func(
@@ -173,9 +171,9 @@ unsafe extern "system" fn chrome_window_proc(
             }
             return DefWindowProcW(hwnd, msg, wparam, lparam);
         }
-        WM_ACTIVATE | WM_SHOWWINDOW | WM_SYSCOMMAND | WM_SYSKEYDOWN | WM_SYSKEYUP | WM_INPUT
-        | WM_SETFOCUS | WM_KILLFOCUS => return LRESULT::default(),
-        WM_MOUSEACTIVATE => return LRESULT(MA_NOACTIVATEANDEAT as isize),
+        WM_SYSCOMMAND => return DefWindowProcW(hwnd, msg, wparam, lparam),
+        WM_ACTIVATE | WM_SHOWWINDOW | WM_SYSKEYDOWN | WM_SYSKEYUP | WM_INPUT | WM_SETFOCUS
+        | WM_KILLFOCUS => return LRESULT::default(),
         WM_POWERBROADCAST => return LRESULT(1),
         _ => {}
     }
