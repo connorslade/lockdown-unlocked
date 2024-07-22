@@ -1,10 +1,11 @@
 #![cfg(windows)]
 
-use std::{ffi::c_void, iter, panic, process, thread, time::Duration};
+use std::{ffi::c_void, iter, mem, panic, process, thread, time::Duration};
 
 use anyhow::Result;
+use hook::LazyHook;
 use windows::{
-    core::{s, PCSTR},
+    core::{s, PCSTR, PCWSTR},
     Win32::{
         Foundation::{GetLastError, BOOL, HANDLE, HINSTANCE, HWND, LPARAM, MAX_PATH},
         System::{
@@ -16,10 +17,13 @@ use windows::{
             Threading::GetCurrentProcess,
         },
         UI::WindowsAndMessaging::{
-            EnumWindows, GetWindowLongA, GetWindowTextA, MoveWindow, GWL_STYLE,
+            CreateWindowExA, EnumWindows, GetWindowLongA, GetWindowTextA, MoveWindow, GWL_STYLE,
+            HMENU, WINDOW_EX_STYLE, WINDOW_STYLE,
         },
     },
 };
+
+mod hook;
 
 macro_rules! log {
     ($($arg:tt)*) => {{
@@ -75,14 +79,11 @@ unsafe extern "system" fn enum_processes_detour(
     _cb: u32,
     lpcbneeded: *mut u32,
 ) -> i32 {
+    log!("EnumProcesses");
     *lpidprocess = 0;
     *lpcbneeded = 0;
     1
 }
-
-static mut ENUM_PROCESSES_ORIGINAL_BYTES: [u8; 6] = [0; 6];
-static mut BYTES_WRITTEN: usize = 0;
-static mut ENUM_PROCESSES_ADDRESS: Option<unsafe extern "system" fn() -> isize> = None;
 
 const WINDOW_SIZE: (i32, i32) = (1920, 1080);
 
@@ -113,45 +114,68 @@ unsafe extern "system" fn window_enum(hwnd: HWND, _lparam: LPARAM) -> BOOL {
     BOOL(1)
 }
 
+type CreateWindowExW = unsafe extern "system" fn(
+    WINDOW_EX_STYLE,
+    PCWSTR,
+    PCWSTR,
+    WINDOW_STYLE,
+    i32,
+    i32,
+    i32,
+    i32,
+    HWND,
+    HMENU,
+    HINSTANCE,
+    *const c_void,
+) -> HWND;
+
+#[rustfmt::skip]
+unsafe extern "system" fn create_win_detour(
+    dwexstyle: WINDOW_EX_STYLE,
+    lpclassname: PCWSTR,
+    lpwindowname: PCWSTR,
+    dwstyle: WINDOW_STYLE,
+    x: i32,
+    y: i32,
+    nwidth: i32,
+    nheight: i32,
+    hwndparent: HWND,
+    hmenu: HMENU,
+    hinstance: HINSTANCE,
+    lpparam: *const c_void,
+) -> HWND {
+    log!("CreateWindowExW");
+
+    let trampoline = CREATE_WINDOW_EXA_HOOK.trampoline::<CreateWindowExW>();
+    trampoline(dwexstyle, lpclassname, lpwindowname, dwstyle, x, y, nwidth, nheight, hwndparent, hmenu, hinstance, lpparam)
+}
+
+static mut ENUM_PROCESSES_HOOK: LazyHook = LazyHook::new();
+static mut CREATE_WINDOW_EXA_HOOK: LazyHook = LazyHook::new();
+
 unsafe fn process_attach() -> Result<()> {
     let cmd = GetCommandLineA();
     let cmd = String::from_utf8_lossy(cmd.as_bytes());
     log!("Command Line: {}", &cmd);
 
-    let dll_handle = LoadLibraryA(s!("Psapi.dll")).unwrap();
-    let bytes_read: usize = 0;
+    let lib_psapi = LoadLibraryA(s!("Psapi.dll")).unwrap();
+    let lib_user32 = LoadLibraryA(s!("User32.dll")).unwrap();
 
-    ENUM_PROCESSES_ADDRESS = GetProcAddress(dll_handle, s!("EnumProcesses"));
+    let enum_proc = GetProcAddress(lib_psapi, s!("EnumProcesses")).unwrap();
+    ENUM_PROCESSES_HOOK
+        .init(
+            enum_proc as *const c_void,
+            enum_processes_detour as *const c_void,
+        )
+        .hook()?;
 
-    if ENUM_PROCESSES_ADDRESS.is_none() {
-        return Err(anyhow::anyhow!("Failed to get EnumProcesses address"));
-    }
-
-    ReadProcessMemory(
-        GetCurrentProcess(),
-        ENUM_PROCESSES_ADDRESS.unwrap() as *const c_void,
-        ENUM_PROCESSES_ORIGINAL_BYTES.as_ptr() as *mut c_void,
-        6,
-        Some(bytes_read as *mut usize),
-    )
-    .unwrap();
-
-    let hooked_message_box_address = (enum_processes_detour as *mut ()).cast::<c_void>();
-    let offset = hooked_message_box_address as isize;
-    let mut patch = [0; 6];
-    patch[0] = 0x68;
-    let temp = offset.to_ne_bytes();
-    patch[1..5].copy_from_slice(&temp[..4]);
-    patch[5] = 0xC3;
-
-    WriteProcessMemory(
-        GetCurrentProcess(),
-        ENUM_PROCESSES_ADDRESS.unwrap() as *const c_void,
-        patch.as_ptr().cast::<c_void>(),
-        6,
-        Some(BYTES_WRITTEN as *mut usize),
-    )
-    .unwrap();
+    let create_win_proc = GetProcAddress(lib_user32, s!("CreateWindowExW")).unwrap();
+    CREATE_WINDOW_EXA_HOOK
+        .init(
+            create_win_proc as *const c_void,
+            create_win_detour as *const c_void,
+        )
+        .hook()?;
 
     thread::spawn(|| {
         log!("Thread started");
