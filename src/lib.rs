@@ -4,14 +4,17 @@ use std::{ffi::c_void, iter, panic, process};
 
 use anyhow::Result;
 use windows::{
-    core::PCSTR,
+    core::{s, PCSTR},
     Win32::{
-        Foundation::{GetLastError, HANDLE, HINSTANCE, MAX_PATH},
+        Foundation::{GetLastError, BOOL, HANDLE, HGLOBAL, HINSTANCE, MAX_PATH},
         System::{
             Diagnostics::Debug::OutputDebugStringA,
+            LibraryLoader::{GetProcAddress, LoadLibraryA},
+            Memory::{GlobalLock, GlobalUnlock},
             ProcessStatus::GetProcessImageFileNameA,
             SystemServices::{DLL_PROCESS_ATTACH, DLL_PROCESS_DETACH},
         },
+        UI::WindowsAndMessaging::{HHOOK, HOOKPROC},
     },
 };
 
@@ -67,8 +70,45 @@ unsafe fn handle_error(result: Result<()>) {
     }
 }
 
+unsafe extern "system" fn set_windows_hook_detour(
+    id_hook: i32,
+    _lpfn: HOOKPROC,
+    _hmod: HINSTANCE,
+    _dw_thread_id: u32,
+) -> HHOOK {
+    log!("SetWindowHookExA called - {id_hook}");
+    HHOOK::default()
+}
+
+unsafe extern "system" fn empty_clipboard_detour() -> BOOL {
+    log!("EmptyClipboard called");
+    BOOL(1)
+}
+
+static mut SET_WINDOWS_HOOK_EXA_HOOK: hook::LazyHook = hook::LazyHook::new();
+static mut EMPTY_CLIPBOARD_HOOK: hook::LazyHook = hook::LazyHook::new();
+
 unsafe fn process_attach() -> Result<()> {
     hooks::init()?;
+
+    let user32 = LoadLibraryA(s!("User32.dll"))?;
+    let set_windows_hook_exa = GetProcAddress(user32, s!("SetWindowsHookExA")).unwrap();
+    let empty_clipboard = GetProcAddress(user32, s!("EmptyClipboard")).unwrap();
+
+    SET_WINDOWS_HOOK_EXA_HOOK
+        .init(
+            set_windows_hook_exa as *const c_void,
+            set_windows_hook_detour as *const c_void,
+        )
+        .hook()?;
+
+    EMPTY_CLIPBOARD_HOOK
+        .init(
+            empty_clipboard as *const c_void,
+            empty_clipboard_detour as *const c_void,
+        )
+        .hook()?;
+
     Ok(())
 }
 

@@ -12,9 +12,10 @@ use windows::{
         },
         UI::WindowsAndMessaging::{
             DefWindowProcW, GetClassInfoExW, GetWindowRect, RegisterClassExW, SetWindowPos, HMENU,
-            SWP_NOSIZE, SWP_NOZORDER, WINDOW_EX_STYLE, WINDOW_STYLE, WM_ACTIVATE, WM_MOUSEACTIVATE,
-            WM_MOVE, WM_SHOWWINDOW, WM_SYSCOMMAND, WM_SYSKEYDOWN, WM_SYSKEYUP, WNDCLASSEXW,
-            WS_CAPTION,
+            MA_NOACTIVATE, MA_NOACTIVATEANDEAT, SWP_NOSIZE, SWP_NOZORDER, WINDOW_EX_STYLE,
+            WINDOW_STYLE, WM_ACTIVATE, WM_INPUT, WM_KILLFOCUS, WM_MOUSEACTIVATE, WM_MOVE,
+            WM_POWERBROADCAST, WM_SETFOCUS, WM_SHOWWINDOW, WM_SYSCOMMAND, WM_SYSKEYDOWN,
+            WM_SYSKEYUP, WNDCLASSEXW, WS_CAPTION,
         },
     },
 };
@@ -83,6 +84,8 @@ unsafe extern "system" fn create_win_detour(
                 panic!("Already hooked");
             }
 
+            x += 100;
+            y += 100;
             nwidth = WINDOW_SIZE.0;
             nheight = WINDOW_SIZE.1;
             dwstyle |= WS_CAPTION;
@@ -172,11 +175,12 @@ unsafe extern "system" fn chrome_window_proc(
                     SWP_NOSIZE | SWP_NOZORDER,
                 );
             }
-        }
-        WM_ACTIVATE | WM_SHOWWINDOW | WM_MOUSEACTIVATE | WM_SYSCOMMAND | WM_SYSKEYDOWN
-        | WM_SYSKEYUP => {
             return DefWindowProcW(hwnd, msg, wparam, lparam);
         }
+        WM_ACTIVATE | WM_SHOWWINDOW | WM_SYSCOMMAND | WM_SYSKEYDOWN | WM_SYSKEYUP | WM_INPUT
+        | WM_SETFOCUS | WM_KILLFOCUS => return LRESULT::default(),
+        WM_MOUSEACTIVATE => return LRESULT(MA_NOACTIVATEANDEAT as isize),
+        WM_POWERBROADCAST => return LRESULT(1),
         _ => {}
     }
 

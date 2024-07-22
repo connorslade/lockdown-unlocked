@@ -10,7 +10,7 @@ use windows::Win32::System::{
     Threading::GetCurrentProcess,
 };
 
-pub unsafe fn hook(function: *const c_void, detour: *const c_void) -> Result<[u8; 6]> {
+unsafe fn hook(function: *const c_void, detour: *const c_void) -> Result<[u8; 6]> {
     let proc = GetCurrentProcess();
 
     let mut original = [0u8; 6];

@@ -13,8 +13,6 @@ use crate::hook::LazyHook;
 
 use super::CHROME_WINDOW;
 
-type GetForegroundWindow = unsafe extern "system" fn() -> HWND;
-
 static mut GET_FOREGROUND_WINDOW_HOOK: LazyHook = LazyHook::new();
 
 pub unsafe fn init() -> Result<()> {
@@ -36,7 +34,5 @@ unsafe extern "system" fn get_foreground_window_detour() -> HWND {
         return hwnd;
     }
 
-    GET_FOREGROUND_WINDOW_HOOK
-        .trampoline::<GetForegroundWindow, HWND>(|func| func())
-        .unwrap()
+    HWND::default()
 }
