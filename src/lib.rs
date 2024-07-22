@@ -19,7 +19,8 @@ use windows::{
         },
         UI::WindowsAndMessaging::{
             DefWindowProcW, GetClassInfoExW, GetWindowRect, RegisterClassExW, SetWindowPos, HMENU,
-            SWP_NOSIZE, SWP_NOZORDER, WINDOW_EX_STYLE, WINDOW_STYLE, WM_MOVE, WNDCLASSEXW,
+            SWP_NOSIZE, SWP_NOZORDER, WINDOW_EX_STYLE, WINDOW_STYLE, WM_ACTIVATE, WM_MOUSEACTIVATE,
+            WM_MOVE, WM_SHOWWINDOW, WM_SYSCOMMAND, WM_SYSKEYDOWN, WM_SYSKEYUP, WNDCLASSEXW,
             WS_CAPTION,
         },
     },
@@ -133,6 +134,10 @@ unsafe extern "system" fn chrome_window_proc(
                 );
             }
         }
+        WM_ACTIVATE | WM_SHOWWINDOW | WM_MOUSEACTIVATE | WM_SYSCOMMAND | WM_SYSKEYDOWN
+        | WM_SYSKEYUP => {
+            return DefWindowProcW(hwnd, msg, wparam, lparam);
+        }
         _ => {}
     }
 
@@ -169,8 +174,6 @@ unsafe extern "system" fn create_win_detour(
                 panic!("Already hooked");
             }
 
-            x += 100;
-            y += 100;
             nwidth = WINDOW_SIZE.0;
             nheight = WINDOW_SIZE.1;
             dwstyle |= WS_CAPTION;
@@ -239,8 +242,20 @@ unsafe extern "system" fn create_win_detour(
     hwnd
 }
 
+type GetForegroundWindow = unsafe extern "system" fn() -> HWND;
+unsafe extern "system" fn get_foreground_window_detour() -> HWND {
+    if let Some((hwnd, _)) = CHROME_WINDOW {
+        return hwnd;
+    }
+
+    GET_FOREGROUND_WINDOW_HOOK
+        .trampoline::<GetForegroundWindow, HWND>(|func| func())
+        .unwrap()
+}
+
 static mut ENUM_PROCESSES_HOOK: LazyHook = LazyHook::new();
 static mut CREATE_WINDOW_EXA_HOOK: LazyHook = LazyHook::new();
+static mut GET_FOREGROUND_WINDOW_HOOK: LazyHook = LazyHook::new();
 
 unsafe fn process_attach() -> Result<()> {
     let cmd = GetCommandLineA();
@@ -263,6 +278,14 @@ unsafe fn process_attach() -> Result<()> {
         .init(
             create_win_proc as *const c_void,
             create_win_detour as *const c_void,
+        )
+        .hook()?;
+
+    let get_foreground_window = GetProcAddress(lib_user32, s!("GetForegroundWindow")).unwrap();
+    GET_FOREGROUND_WINDOW_HOOK
+        .init(
+            get_foreground_window as *const c_void,
+            get_foreground_window_detour as *const c_void,
         )
         .hook()?;
 
