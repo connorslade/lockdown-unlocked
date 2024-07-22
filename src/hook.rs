@@ -48,8 +48,13 @@ impl Hook {
         }
     }
 
-    pub unsafe fn trampoline<T>(&self) -> T {
-        mem::transmute_copy(&self.function)
+    // so jank ong
+    // this has actually gotta be a crime but i dont know enough about x86 assembly to do it better
+    pub unsafe fn trampoline<T, K>(&mut self, trampoline: impl FnOnce(T) -> K) -> Result<K> {
+        self.unhook()?;
+        let out = trampoline(mem::transmute_copy::<_, T>(&self.function));
+        self.hook()?;
+        Ok(out)
     }
 
     pub unsafe fn hook(&mut self) -> Result<()> {
