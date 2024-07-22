@@ -3,24 +3,21 @@ use std::{ffi::c_void, iter, mem};
 use crate::{hook::LazyHook, hooks::CHROME_WINDOW, log};
 use anyhow::Result;
 use windows::{
-    core::{s, PCSTR, PCWSTR},
+    core::{s, PCWSTR},
     Win32::{
         Foundation::{HINSTANCE, HWND, LPARAM, LRESULT, RECT, WPARAM},
-        System::{
-            Diagnostics::Debug::OutputDebugStringA,
-            LibraryLoader::{GetProcAddress, LoadLibraryA},
-        },
+        System::LibraryLoader::GetProcAddress,
         UI::WindowsAndMessaging::{
             DefWindowProcW, GetClassInfoExW, GetWindowRect, RegisterClassExW, SetWindowPos, HMENU,
-            MA_NOACTIVATE, MA_NOACTIVATEANDEAT, SWP_NOSIZE, SWP_NOZORDER, WINDOW_EX_STYLE,
-            WINDOW_STYLE, WM_ACTIVATE, WM_INPUT, WM_KILLFOCUS, WM_MOUSEACTIVATE, WM_MOVE,
-            WM_POWERBROADCAST, WM_SETFOCUS, WM_SHOWWINDOW, WM_SYSCOMMAND, WM_SYSKEYDOWN,
-            WM_SYSKEYUP, WNDCLASSEXW, WS_CAPTION,
+            MA_NOACTIVATEANDEAT, SWP_NOSIZE, SWP_NOZORDER, WINDOW_EX_STYLE, WINDOW_STYLE,
+            WM_ACTIVATE, WM_INPUT, WM_KILLFOCUS, WM_MOUSEACTIVATE, WM_MOVE, WM_POWERBROADCAST,
+            WM_SETFOCUS, WM_SHOWWINDOW, WM_SYSCOMMAND, WM_SYSKEYDOWN, WM_SYSKEYUP, WNDCLASSEXW,
+            WS_CAPTION,
         },
     },
 };
 
-use super::BROWSER_WINDOWS;
+use super::{BROWSER_WINDOWS, LIB_USER32};
 
 const WINDOW_SIZE: (i32, i32) = (1920, 1080);
 const CHROME_NAME: &str = "Respondus LockDown Browser";
@@ -29,8 +26,7 @@ const BROWSER_NAME: &str = "LockDown Browser";
 static mut CREATE_WINDOW_EXA_HOOK: LazyHook = LazyHook::new();
 
 pub unsafe fn init() -> Result<()> {
-    let lib_user32 = LoadLibraryA(s!("User32.dll")).unwrap();
-    let create_win_proc = GetProcAddress(lib_user32, s!("CreateWindowExW")).unwrap();
+    let create_win_proc = GetProcAddress(*LIB_USER32, s!("CreateWindowExW")).unwrap();
 
     CREATE_WINDOW_EXA_HOOK
         .init(
