@@ -60,21 +60,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "injection"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "ilhook",
- "once_cell",
- "parking_lot",
- "windows",
-]
-
-[[package]]
-name = "launcher"
-version = "0.1.0"
-
-[[package]]
 name = "lazy_static"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -94,6 +79,17 @@ checksum = "07af8b9cdd281b7915f413fa73f29ebd5d55d0d3f0155584dade1ff18cea1b17"
 dependencies = [
  "autocfg",
  "scopeguard",
+]
+
+[[package]]
+name = "lockdown_unlocked"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "ilhook",
+ "once_cell",
+ "parking_lot",
+ "windows",
 ]
 
 [[package]]
@@ -201,9 +197,9 @@ checksum = "3c5e1a9a646d36c3599cd173a41282daf47c44583ad367b8e6837255952e5c67"
 
 [[package]]
 name = "syn"
-version = "2.0.72"
+version = "2.0.71"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dc4b9b9bf2add8093d3f2c0204471e951b2285580335de42f9d2534f3ae7a8af"
+checksum = "b146dcf730474b4bcd16c311627b31ede9ab149045db4d6088b3becaea046462"
 dependencies = [
  "proc-macro2",
  "quote",
