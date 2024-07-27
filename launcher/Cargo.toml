@@ -6,4 +6,7 @@ edition = "2021"
 [dependencies]
 anyhow.workspace = true
 dll-syringe.workspace = true
+serde.workspace = true
+toml.workspace = true
 windows.workspace = true
+winreg.workspace = true
