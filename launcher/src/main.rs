@@ -1,4 +1,7 @@
-use std::{env, process::Command};
+use std::{
+    env, io,
+    process::{self, Command},
+};
 
 use anyhow::{Context, Result};
 use config::Config;
@@ -8,10 +11,18 @@ mod config;
 mod winapi;
 use winapi::{is_admin, register_link_handler};
 
-fn main() -> Result<()> {
+fn main() {
+    if let Err(e) = run() {
+        eprintln!("[-] {}", e);
+    }
+
+    println!("[*] Press enter to exit...");
+    io::stdin().read_line(&mut String::new()).unwrap();
+}
+
+fn run() -> Result<()> {
     if !unsafe { is_admin() }? {
-        println!("[*] This program requires admin privileges, relaunching...");
-        // unsafe { relaunch_with_admin()? };
+        println!("[*] This program requires admin privileges.");
         return Ok(());
     }
 
@@ -19,6 +30,7 @@ fn main() -> Result<()> {
     if args.len() == 1 {
         println!("[*] Registering `rldb` link handler...");
         unsafe { register_link_handler() }?;
+        println!("[*] Success");
         return Ok(());
     }
 
@@ -45,5 +57,5 @@ fn main() -> Result<()> {
     println!("[*] Successfully injected DLL into LockDown Browser.");
     proc.wait()?;
 
-    Ok(())
+    process::exit(0);
 }

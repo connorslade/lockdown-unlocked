@@ -10,3 +10,6 @@ serde.workspace = true
 toml.workspace = true
 windows.workspace = true
 winreg.workspace = true
+
+[build-dependencies]
+embed-resource.workspace = true
