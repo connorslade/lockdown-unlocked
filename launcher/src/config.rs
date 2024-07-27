@@ -1,5 +1,5 @@
 use std::{
-    env, fs,
+    fs,
     path::{Path, PathBuf},
 };
 
@@ -14,8 +14,6 @@ pub struct Config {
 
 impl Config {
     pub fn load(path: impl AsRef<Path>) -> Result<Self> {
-        let path = env::current_exe()?.parent().unwrap().join(path);
-
         let config = fs::read_to_string(path)?;
         let config = toml::from_str(&config)?;
         Ok(config)
