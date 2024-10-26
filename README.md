@@ -12,6 +12,14 @@ Using DLL injection and function hooking, you can fairly easily bypass the secur
 
 ## Usage
 
+> [!IMPORTANT]
+> **This project is not currently in a user friendly state.**
+> The the launcher program does not correctly inject the DLL into the browser process, so you will need to use your own tool for DDL injection
+> (Sandboxie seems to work well).
+> I may or may not get around to fixing this in the future.
+>
+> If you are not a developer, I would recomend looking into [gucci-on-fleek/lockdown-browser](https://github.com/gucci-on-fleek/lockdown-browser), which runs in Windows Sandbox.
+
 First download the latest release from the [releases page](https://github.com/connorslade/lockdown-unlocked/releases).
 Inside the zip, there are three files:
 
